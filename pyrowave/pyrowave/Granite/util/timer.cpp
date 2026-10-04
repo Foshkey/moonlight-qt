@@ -141,11 +141,28 @@ void sleep_until_nsecs(int64_t timepoint)
 #else
 	constexpr auto timebase = CLOCK_MONOTONIC;
 	struct timespec ts = {};
+#ifdef TIMER_ABSTIME
 	ts.tv_sec = timepoint / 1000000000ll;
 	ts.tv_nsec = timepoint % 1000000000ll;
 	// Linux does not support clock_nanosleep with MONOTONIC_RAW :(
 	int ret;
 	while ((ret = clock_nanosleep(timebase, TIMER_ABSTIME, &ts, nullptr)) == EINTR) {}
+#else
+	// Apple platforms have neither TIMER_ABSTIME nor a clock_nanosleep
+	// declaration. Sleep on what is left of the deadline and re-read it, so a
+	// spurious wakeup cannot return early.
+	int ret;
+	do
+	{
+		int64_t delta = timepoint - get_current_time_nsecs();
+		if (delta <= 0)
+			break;
+		ts.tv_sec = delta / 1000000000ll;
+		ts.tv_nsec = delta % 1000000000ll;
+		ret = nanosleep(&ts, nullptr);
+	}
+	while (ret == EINTR);
+#endif
 #endif
 }
 

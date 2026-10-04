@@ -278,7 +278,8 @@ public:
         return nullptr;
     }
 
-    // Linux renderers on Vulkan lend planes on their own VkDevice instead
+    // Vulkan renderers on Linux and macOS lend planes on their own VkDevice
+    // instead
     virtual IPyroWaveVulkanPool* getPyroWaveVulkanPool() {
         return nullptr;
     }

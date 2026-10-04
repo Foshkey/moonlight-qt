@@ -17,12 +17,19 @@ win32:!winrt {
 }
 
 # PyroWave codec library (see pyrowave/VENDOR.txt). Must match the condition
-# in app/app.pro. Linux decodes with Vulkan and presents through libplacebo.
+# in app/app.pro. Linux and macOS decode with Vulkan and present through
+# libplacebo. Unlike the other two, macOS is not limited to x86_64.
 win32:!winrt:contains(QT_ARCH, x86_64):!disable-pyrowave {
     SUBDIRS += pyrowave
     app.depends += pyrowave
 }
 linux:contains(QT_ARCH, x86_64):!disable-pyrowave:!disable-libplacebo:packagesExist(libplacebo) {
+    SUBDIRS += pyrowave
+    app.depends += pyrowave
+}
+# macOS has no pkg-config entry for the prebuilt libplacebo, so mirror the
+# condition app/app.pro uses instead of packagesExist().
+macx:!disable-prebuilts:!disable-libplacebo:!disable-pyrowave {
     SUBDIRS += pyrowave
     app.depends += pyrowave
 }

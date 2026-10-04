@@ -104,8 +104,8 @@ SystemProperties::SystemProperties()
     hasDiscordIntegration = false;
 #endif
 
-    // PyroWave has a D3D11 path on Windows and a Vulkan path on Linux.
-#if defined(HAVE_PYROWAVE) && (defined(Q_OS_WIN32) || defined(Q_OS_LINUX))
+    // PyroWave has a D3D11 path on Windows and a Vulkan path on Linux and macOS.
+#if defined(HAVE_PYROWAVE) && (defined(Q_OS_WIN32) || defined(Q_OS_LINUX) || defined(Q_OS_DARWIN))
     hasPyroWave = true;
 #else
     hasPyroWave = false;

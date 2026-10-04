@@ -1,0 +1,47 @@
+Make sleep_until_nsecs build on Apple platforms.
+
+sleep_until_nsecs() asks for an absolute deadline, which glibc spells
+clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, ...). TIMER_ABSTIME is a Linux
+extension and Apple's libc does not declare clock_nanosleep() at all in the
+default feature set, so the vendored Granite subset did not compile for macOS.
+
+Sleep on what is left of the deadline and re-read it instead. That keeps the
+absolute contract (never return before timepoint) on a platform whose only
+sleep primitive is the relative nanosleep(), and the loop absorbs EINTR and
+spurious wakeups. The remaining time comes from get_current_time_nsecs(), the
+same CLOCK_MONOTONIC source the absolute path assumed, so the two cannot drift.
+
+Only the non-Linux branch changes; Linux keeps the exact absolute call it had.
+diff --git a/Granite/util/timer.cpp b/Granite/util/timer.cpp
+--- a/Granite/util/timer.cpp
++++ b/Granite/util/timer.cpp
+@@ -141,12 +141,29 @@
+ #else
+ 	constexpr auto timebase = CLOCK_MONOTONIC;
+ 	struct timespec ts = {};
++#ifdef TIMER_ABSTIME
+ 	ts.tv_sec = timepoint / 1000000000ll;
+ 	ts.tv_nsec = timepoint % 1000000000ll;
+ 	// Linux does not support clock_nanosleep with MONOTONIC_RAW :(
+ 	int ret;
+ 	while ((ret = clock_nanosleep(timebase, TIMER_ABSTIME, &ts, nullptr)) == EINTR) {}
++#else
++	// Apple platforms have neither TIMER_ABSTIME nor a clock_nanosleep
++	// declaration. Sleep on what is left of the deadline and re-read it, so a
++	// spurious wakeup cannot return early.
++	int ret;
++	do
++	{
++		int64_t delta = timepoint - get_current_time_nsecs();
++		if (delta <= 0)
++			break;
++		ts.tv_sec = delta / 1000000000ll;
++		ts.tv_nsec = delta % 1000000000ll;
++		ret = nanosleep(&ts, nullptr);
++	}
++	while (ret == EINTR);
+ #endif
++#endif
+ }
+ 
+ void Timer::start()

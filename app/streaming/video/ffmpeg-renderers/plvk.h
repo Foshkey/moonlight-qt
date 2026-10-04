@@ -24,7 +24,7 @@
 #include "vulkantiming.h"
 #endif
 
-#if defined(HAVE_PYROWAVE) && defined(Q_OS_LINUX)
+#if defined(HAVE_PYROWAVE) && (defined(Q_OS_LINUX) || defined(Q_OS_DARWIN))
 #include "streaming/video/pyrowave/pyrowaveplacebo.h"
 #endif
 
@@ -98,7 +98,7 @@ public:
     virtual int getDecoderCapabilities() override;
     virtual bool isPixelFormatSupported(int videoFormat, enum AVPixelFormat pixelFormat) override;
     virtual AVPixelFormat getPreferredPixelFormat(int videoFormat) override;
-#if defined(HAVE_PYROWAVE) && defined(Q_OS_LINUX)
+#if defined(HAVE_PYROWAVE) && (defined(Q_OS_LINUX) || defined(Q_OS_DARWIN))
     IPyroWaveVulkanPool* getPyroWaveVulkanPool() override { return m_PyroWavePool.get(); }
 #endif
 
@@ -184,7 +184,7 @@ private:
     // must not begin a command inside that window, so it and every swapchain
     // submit hold this lock. Texture creation records nothing and stays out.
     std::mutex m_CommandLock;
-#if defined(HAVE_PYROWAVE) && defined(Q_OS_LINUX)
+#if defined(HAVE_PYROWAVE) && (defined(Q_OS_LINUX) || defined(Q_OS_DARWIN))
     std::unique_ptr<PyroWavePlaceboPool> m_PyroWavePool;
 #endif
 

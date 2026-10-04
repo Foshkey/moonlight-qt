@@ -5871,6 +5871,11 @@ bool Device::supports_subgroup_size_log2(bool subgroup_full_group, uint8_t subgr
 		return false;
 	}
 
+	// A zero requiredSubgroupSizeStages means the implementation imposes no
+	// stage restriction, so any size in the overlap is usable.
+	if (ext.vk13_props.requiredSubgroupSizeStages == 0)
+		return true;
+
 	// We need requiredSubgroupSizeStages support here.
 	return (ext.vk13_props.requiredSubgroupSizeStages & stage) != 0;
 }

@@ -74,12 +74,12 @@ public:
 
 namespace {
 
-#ifdef Q_OS_LINUX
-// Bound both the synchronous software-frame completion fallback and
-// backpressure on the asynchronous hardware-source retirement queue. A frame
-// that cannot retire inside this interval is a renderer/device fault, not an
-// invitation to hold the pacer indefinitely.
+// Bound how long a GPU-side readiness wait may take. Used by the software-frame
+// completion fallback, the asynchronous hardware-source retirement queue, and
+// the PyroWave decode wait, so it is shared by every platform.
 constexpr uint64_t kVulkanGpuReadyTimeoutUs = 50000;
+
+#ifdef Q_OS_LINUX
 constexpr unsigned int kVulkanGpuReadyPollLimit = 100000;
 // Allow up to four retained source frames in flight on the GPU to prevent
 // capacity stalls during high frame rates, while bounding memory usage.
@@ -306,7 +306,7 @@ PlVkRenderer::~PlVkRenderer()
     SDL_assert(!m_HasPendingSwapchainFrame);
 
     if (m_Vulkan != nullptr) {
-#if defined(HAVE_PYROWAVE) && defined(Q_OS_LINUX)
+#if defined(HAVE_PYROWAVE) && (defined(Q_OS_LINUX) || defined(Q_OS_DARWIN))
         m_PyroWavePool.reset();
 #endif
 #ifdef PLVK_USE_EARLY_RENDER_TO_WAIT
@@ -548,7 +548,7 @@ bool PlVkRenderer::tryInitializeDevice(VkPhysicalDevice device, VkPhysicalDevice
 #endif
     vkParams.opt_extensions = optionalExtensions.data();
     vkParams.num_opt_extensions = int(optionalExtensions.size());
-#if defined(HAVE_PYROWAVE) && defined(Q_OS_LINUX)
+#if defined(HAVE_PYROWAVE) && (defined(Q_OS_LINUX) || defined(Q_OS_DARWIN))
     const bool pyroWave = (decoderParams->videoFormat & VIDEO_FORMAT_MASK_PYROWAVE) != 0;
     if (pyroWave) {
         vkParams.features = PyroWavePlaceboPool::requestedFeatures();
@@ -569,7 +569,7 @@ bool PlVkRenderer::tryInitializeDevice(VkPhysicalDevice device, VkPhysicalDevice
         return false;
     }
 
-#if defined(HAVE_PYROWAVE) && defined(Q_OS_LINUX)
+#if defined(HAVE_PYROWAVE) && (defined(Q_OS_LINUX) || defined(Q_OS_DARWIN))
     if (pyroWave) {
         if (PyroWavePlaceboPool::supported(m_Vulkan)) {
             m_PyroWavePool = std::make_unique<PyroWavePlaceboPool>(m_PlVkInstance, m_Vulkan, m_CommandLock);
@@ -1083,7 +1083,7 @@ bool PlVkRenderer::mapAvFrameToPlacebo(const AVFrame *frame, pl_frame* mappedFra
     }
     else
 #endif
-#if defined(HAVE_PYROWAVE) && defined(Q_OS_LINUX)
+#if defined(HAVE_PYROWAVE) && (defined(Q_OS_LINUX) || defined(Q_OS_DARWIN))
     if (m_PyroWavePool && m_PyroWavePool->ownsFrame(frame)) {
         m_PyroWavePool->mapFrame(frame, mappedFrame);
     }
@@ -1126,7 +1126,7 @@ bool PlVkRenderer::mapAvFrameToPlacebo(const AVFrame *frame, pl_frame* mappedFra
 
 void PlVkRenderer::unmapAvFrameFromPlacebo(const AVFrame *frame, pl_frame* mappedFrame)
 {
-#if defined(HAVE_PYROWAVE) && defined(Q_OS_LINUX)
+#if defined(HAVE_PYROWAVE) && (defined(Q_OS_LINUX) || defined(Q_OS_DARWIN))
     // Its planes stay owned by the pool; there is no mapping to undo
     if (m_PyroWavePool && m_PyroWavePool->ownsFrame(frame)) {
         return;
@@ -1498,7 +1498,7 @@ void PlVkRenderer::gpuRenderInfo(void* opaque, const pl_render_info* info)
 
 uint64_t PlVkRenderer::waitForDecode(AVFrame* frame)
 {
-#if defined(HAVE_PYROWAVE) && defined(Q_OS_LINUX)
+#if defined(HAVE_PYROWAVE) && (defined(Q_OS_LINUX) || defined(Q_OS_DARWIN))
     if (frame != nullptr && m_PyroWavePool && m_PyroWavePool->ownsFrame(frame)) {
         // These AVFrames use planar software format descriptors, but their
         // pixels are still being decoded on Vulkan. Establish completion

@@ -1,0 +1,36 @@
+Treat requiredSubgroupSizeStages == 0 as unrestricted subgroup sizes.
+
+Device::supports_subgroup_size_log2() ends by asking whether the requested
+shader stage appears in VkPhysicalDeviceSubgroupSizeControlProperties::
+requiredSubgroupSizeStages. A zero value is defined to mean the implementation
+places no stage restriction at all, so the application may pick any subgroup
+size for any stage. The check treated zero as "no stage qualifies" and
+therefore rejected every non-degenerate request.
+
+MoltenVK reports requiredSubgroupSizeStages == 0, so on macOS every
+supports_subgroup_size_log2() query failed and PyroWave's Encoder::init()
+refused to create an encoder. PyroWave only accepts a subgroup size of 4, 5 or
+6, which is exactly the kind of request this code path rejected.
+
+Returns true only once the existing overlap test above has confirmed the
+requested size lies within [minSubgroupSize, maxSubgroupSize], so an
+out-of-range size is still rejected. Devices that report a non-zero mask keep
+the original behaviour, and the degenerate 0/0 (VARIABLE_SIZE) case already
+returned true above.
+
+Needed to make PyroWave usable on macOS. Fix the same inversion upstream.
+diff --git a/Granite/vulkan/device.cpp b/Granite/vulkan/device.cpp
+--- a/Granite/vulkan/device.cpp
++++ b/Granite/vulkan/device.cpp
+@@ -5871,6 +5871,11 @@
+ 		return false;
+ 	}
+ 
++	// A zero requiredSubgroupSizeStages means the implementation imposes no
++	// stage restriction, so any size in the overlap is usable.
++	if (ext.vk13_props.requiredSubgroupSizeStages == 0)
++		return true;
++
+ 	// We need requiredSubgroupSizeStages support here.
+ 	return (ext.vk13_props.requiredSubgroupSizeStages & stage) != 0;
+ }
